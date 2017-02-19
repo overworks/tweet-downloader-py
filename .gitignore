@@ -17,6 +17,16 @@ $RECYCLE.BIN/
 # Windows shortcuts
 *.lnk
 
+# Visual Studio Code
+.vscode
+
+# Python code caches
+__pycache__
+*.pyc
+
+# Token file
+token.json
+
 # =========================
 # Operating System Files
 # =========================

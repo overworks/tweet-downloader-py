@@ -1,4 +1,3 @@
-#!usr/bin/python
 # -*- coding: utf-8 -*-
 
 import sys
@@ -11,12 +10,23 @@ from six.moves import input
 
 
 class ArgumentError(ValueError):
-    """인수가 잘못되었을때 사용법을 표시하기 위한 예외"""
+    """ 인수가 잘못되었을때 사용법을 표시하기 위한 예외 """
     pass
 
-def get_auth():
 
-    # 컨슈머 키와 시크릿은 공개되면 안되므로 별도의 파일에 집어넣음
+class Argument():
+    """ 스크립트 인수처리용 클래스 """
+    query = ''
+    path = os.path.curdir
+    silence = False
+    retweet_count = 0
+    item_count = 500
+    screen_name = ''
+
+
+def get_auth():
+    """ OAuthHandler 구성 """
+
     from credential import CONSUMER_KEY, CONSUMER_SECRET
     auth = tweepy.OAuthHandler(CONSUMER_KEY, CONSUMER_SECRET, 'oob')
 
@@ -33,8 +43,8 @@ def get_auth():
     else:
         redirect_url = auth.get_authorization_url()
         webbrowser.open(redirect_url)
-        verifier = input('Input PIN: ')
-        access_token, access_token_secret = auth.get_access_token(verifier)
+        pin = input('Input PIN: ')
+        access_token, access_token_secret = auth.get_access_token(pin)
 
         token['access_token'] = access_token
         token['access_token_secret'] = access_token_secret
@@ -50,11 +60,12 @@ def display_usage():
 
     print('사용법: tweet_downloader [옵션] [인수] 검색어')
     print()
-    print('옵션 -')
-    print('\t-d, --directory [PATH]: 저장할 디렉토리')
-    print('\t-i, --item [COUNT]: 검색할 트윗 갯수')
-    print('\t-r, --retweet [NUMBER]: [NUMBER] 이상 리트윗된 것만 다운로드')
-    print('\t-s, --silence: 메시지를 표시하지 않음')
+    print('옵션:')
+    print('\t-d, --directory [PATH]          : 저장할 디렉토리')
+    print('\t-i, --item [COUNT]              : 검색할 트윗 갯수')
+    print('\t-rt, --retweet [NUMBER]         : [NUMBER] 이상 리트윗된 것만 다운로드')
+    print('\t-s, --silence                   : 메시지를 표시하지 않음')
+    print('\t-sn, --screen_name [SCREEN_NAME]: 트위터 유저 [SCREEN_NAME]의 트윗 내에서 검색')
 
 
 def check_status(status, retweet_count):
@@ -76,20 +87,31 @@ def download_media(status, directory, silence):
     if not os.path.exists(directory):
         os.mkdir(directory)
 
+    if not silence:
+        print('downloading tweet media - id:{0}, rt count:{1}, text:{2}'.format(status.id, status.retweet_count, status.text))
+
     download_count = 0
+    media_index = 1
     for media in status.entities['media']:
         url = media['media_url_https']
-        filename = os.path.basename(url)
-        file_path = os.path.join(directory, filename)
+        extension = os.path.splitext(url)[1]
+        filename = '{0}-{1}{2}'.format(status.id, media_index, extension)
+        filepath = os.path.join(directory, filename)
 
-        if not os.path.exists(file_path):
+        if not os.path.exists(filepath):
             if not silence:
-                print('downloading file {0} from {1} (RT count: {2})'.format(filename, status.text, status.retweet_count))
+                print('\tsaving {0} to {1}'.format(url, filepath))
+
             r = requests.get(url, stream=True)
-            with open(file_path, 'wb') as f:
+            with open(filepath, 'wb') as f:
                 for chunk in r.iter_content(chunk_size=512):
                     f.write(chunk)
             download_count += 1
+        else:
+            if not silence:
+                print('\t{0} already exists'.format(filepath))
+        
+        media_index += 1
 
     return download_count
 
@@ -101,16 +123,19 @@ def main(args):
         auth = get_auth()
         api = tweepy.API(auth)
 
-        query = args[0]
-        retweet_count = args[1]
-        item_count = args[2]
-        directory = args[3]
-        silence = args[4]
+        query = args.query
+        if args.screen_name:
+            query = 'from:{0} {1}'.format(args.screen_name, query)
 
+        downloaded_tweet_list = []
         count = 0
-        for status in tweepy.Cursor(api.search, q=query).items(item_count):
-            if check_status(status, retweet_count):
-                count += download_media(status, directory, silence)
+        for status in tweepy.Cursor(api.search, q=query).items(args.item_count):
+            if check_status(status, args.retweet_count):
+                source_id = status.entities['media'][0]['source_status_id']
+                if source_id not in downloaded_tweet_list:
+                    source_status = api.get_status(id=source_id)
+                    count += download_media(source_status, args.path, args.silence)
+                    downloaded_tweet_list.append(source_id)
 
     except tweepy.TweepError as e:
         print(e.reason)
@@ -123,33 +148,34 @@ def parse_args():
     if num_args < 2:
         raise ArgumentError()
 
+    args = Argument()
     argi = 1
-    retweet_count = 0
-    item = 500
-    directory = os.path.curdir
-    silence = False
     try:
         while argi < num_args - 1:
             option = sys.argv[argi]
-            if option == '-r' or option == '--retweet':
+            if option == '-rt' or option == '--retweet':
                 argi += 1
-                retweet_count = int(sys.argv[argi])
+                args.retweet_count = int(sys.argv[argi])
             elif option == '-d' or option == '--directory':
                 argi += 1
-                directory = sys.argv[argi]
+                args.path = sys.argv[argi]
             elif option == '-i' or option == '--item':
                 argi += 1
-                item = int(sys.argv[argi])
+                args.item_count = int(sys.argv[argi])
             elif option == '-s' or option == '--silence':
-                silence = True
+                args.silence = True
+            elif option == '-sn' or option == '--screen_name':
+                argi += 1
+                args.screen_name = sys.argv[argi]
+            else:
+                raise ArgumentError()
 
             argi += 1
-
     except:
         raise ArgumentError()
 
-    query = sys.argv[argi]
-    return (query, retweet_count, item, directory, silence)
+    args.query = sys.argv[argi]
+    return args
 
 if __name__ == '__main__':
     try:
