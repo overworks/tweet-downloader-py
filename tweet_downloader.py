@@ -132,7 +132,8 @@ def main(args):
         count = 0
         for status in tweepy.Cursor(api.search, q=query).items(args.item_count):
             if check_status(status, args.retweet_count):
-                source_id = status.entities['media'][0]['source_status_id']
+                media = status.entities['media'][0]
+                source_id = media.get('source_status_id') or status.id
                 if source_id not in downloaded_tweet_list:
                     source_status = api.get_status(id=source_id)
                     count += download_media(source_status, args.path, args.silence)
@@ -182,6 +183,5 @@ if __name__ == '__main__':
     try:
         args = parse_args()
         main(args)
-
     except ArgumentError:
         display_usage()
