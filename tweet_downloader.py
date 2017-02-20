@@ -58,14 +58,14 @@ def get_auth():
 def display_usage():
     """사용법 출력. 영어로 쓰고 싶은데 영어 몰라요우... 누가 번역좀..."""
 
-    print('사용법: tweet_downloader [옵션] [인수] 검색어')
+    print(u'사용법: tweet_downloader [옵션] [인수] 검색어')
     print()
-    print('옵션:')
-    print('\t-d, --directory [PATH]          : 저장할 디렉토리')
-    print('\t-i, --item [COUNT]              : 검색할 트윗 갯수')
-    print('\t-rt, --retweet [NUMBER]         : [NUMBER] 이상 리트윗된 것만 다운로드')
-    print('\t-s, --silence                   : 메시지를 표시하지 않음')
-    print('\t-sn, --screen_name [SCREEN_NAME]: 트위터 유저 [SCREEN_NAME]의 트윗 내에서 검색')
+    print(u'옵션:')
+    print(u'\t-d, --directory [PATH]          : 저장할 디렉토리')
+    print(u'\t-i, --item [COUNT]              : 검색할 트윗 갯수')
+    print(u'\t-rt, --retweet [NUMBER]         : [NUMBER] 이상 리트윗된 것만 다운로드')
+    print(u'\t-s, --silence                   : 메시지를 표시하지 않음')
+    print(u'\t-sn, --screen_name [SCREEN_NAME]: 트위터 유저 [SCREEN_NAME]의 트윗 내에서 검색')
 
 
 def check_status(status, retweet_count):
@@ -88,7 +88,8 @@ def download_media(status, directory, silence):
         os.mkdir(directory)
 
     if not silence:
-        print('downloading tweet media - id:{0}, rt count:{1}, text:{2}'.format(status.id, status.retweet_count, status.text))
+        status_url = status.entities['media'][0]['url']
+        print(u'downloading tweet media from {0} (rt count: {1})'.format(status_url, status.retweet_count))
 
     download_count = 0
     media_index = 1
@@ -100,7 +101,7 @@ def download_media(status, directory, silence):
 
         if not os.path.exists(filepath):
             if not silence:
-                print('\tsaving {0} to {1}'.format(url, filepath))
+                print(u'\tsaving {0} to {1}'.format(url, filepath))
 
             r = requests.get(url, stream=True)
             with open(filepath, 'wb') as f:
@@ -109,8 +110,8 @@ def download_media(status, directory, silence):
             download_count += 1
         else:
             if not silence:
-                print('\t{0} already exists'.format(filepath))
-        
+                print(u'\t{0} already exists'.format(filepath))
+
         media_index += 1
 
     return download_count
